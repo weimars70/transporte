@@ -8,7 +8,6 @@ plugins {
 android {
     namespace = "com.urbanride.urbanride_driver"
     compileSdk = flutter.compileSdkVersion
-    // ndkVersion = flutter.ndkVersion
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -21,22 +20,20 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-
-        ndk {
-            abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a"))
-        }
     }
 
     buildTypes {
         release {
             // Signing with the debug keys for now, so `flutter build apk --release` works out of the box.
             signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 
     packaging {
         jniLibs {
-            keepDebugSymbols.add("**/*")
+            useLegacyPackaging = true
         }
     }
 }
