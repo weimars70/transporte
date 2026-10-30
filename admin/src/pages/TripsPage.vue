@@ -191,64 +191,30 @@
             <q-input
               v-model="newTripForm.originAddress"
               label="Dirección de Origen *"
+              placeholder="Ej: Av. San Martín y Calle 4"
               outlined
               dense
               :rules="[val => !!val || 'Dirección de origen obligatoria']"
-            />
-            <div class="row q-col-gutter-sm">
-              <div class="col-6">
-                <q-input
-                  v-model.number="newTripForm.originLat"
-                  type="number"
-                  step="any"
-                  label="Latitud Origen"
-                  outlined
-                  dense
-                />
-              </div>
-              <div class="col-6">
-                <q-input
-                  v-model.number="newTripForm.originLng"
-                  type="number"
-                  step="any"
-                  label="Longitud Origen"
-                  outlined
-                  dense
-                />
-              </div>
-            </div>
+            >
+              <template #prepend>
+                <q-icon name="trip_origin" color="primary" />
+              </template>
+            </q-input>
 
             <!-- Datos de Destino -->
             <div class="text-subtitle2 text-weight-bold text-primary q-mt-md">3. Punto de Destino</div>
             <q-input
               v-model="newTripForm.destAddress"
               label="Dirección de Destino *"
+              placeholder="Ej: Ventura Mall, 4to Anillo"
               outlined
               dense
               :rules="[val => !!val || 'Dirección de destino obligatoria']"
-            />
-            <div class="row q-col-gutter-sm">
-              <div class="col-6">
-                <q-input
-                  v-model.number="newTripForm.destLat"
-                  type="number"
-                  step="any"
-                  label="Latitud Destino"
-                  outlined
-                  dense
-                />
-              </div>
-              <div class="col-6">
-                <q-input
-                  v-model.number="newTripForm.destLng"
-                  type="number"
-                  step="any"
-                  label="Longitud Destino"
-                  outlined
-                  dense
-                />
-              </div>
-            </div>
+            >
+              <template #prepend>
+                <q-icon name="location_on" color="negative" />
+              </template>
+            </q-input>
 
             <!-- Configuración del Servicio -->
             <div class="text-subtitle2 text-weight-bold text-primary q-mt-md">4. Configuración del Servicio</div>
@@ -510,27 +476,38 @@ const newTripForm = ref({
   passengerName: '',
   passengerPhone: '',
   originAddress: '',
-  originLat: -17.7833,
-  originLng: -63.1821,
   destAddress: '',
-  destLat: -17.7715,
-  destLng: -63.1950,
   vehicleType: 'CAR',
   payment: 'CASH',
   fare: null as number | null,
   driverId: '',
 });
 
+async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const q = encodeURIComponent(address.trim());
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${q}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (Array.isArray(data) && data.length > 0 && data[0].lat && data[0].lon) {
+      const lat = parseFloat(data[0].lat);
+      const lng = parseFloat(data[0].lon);
+      if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
+        return { lat, lng };
+      }
+    }
+  } catch {
+    // Fallback al geocodificador del backend
+  }
+  return null;
+}
+
 function openNewTripDialog() {
   newTripForm.value = {
     passengerName: '',
     passengerPhone: '',
-    originAddress: 'Av. San Martín y Calle 4',
-    originLat: -17.7833,
-    originLng: -63.1821,
-    destAddress: 'Ventura Mall, 4to Anillo',
-    destLat: -17.7550,
-    destLng: -63.1990,
+    originAddress: '',
+    destAddress: '',
     vehicleType: 'CAR',
     payment: 'CASH',
     fare: null,
@@ -543,18 +520,28 @@ function openNewTripDialog() {
 async function submitNewTrip() {
   submittingTrip.value = true;
   try {
+    const [originCoords, destCoords] = await Promise.all([
+      geocodeAddress(newTripForm.value.originAddress),
+      geocodeAddress(newTripForm.value.destAddress),
+    ]);
+
     const payload: any = {
       passengerName: newTripForm.value.passengerName,
       passengerPhone: newTripForm.value.passengerPhone,
       originAddress: newTripForm.value.originAddress,
-      originLat: Number(newTripForm.value.originLat),
-      originLng: Number(newTripForm.value.originLng),
       destAddress: newTripForm.value.destAddress,
-      destLat: Number(newTripForm.value.destLat),
-      destLng: Number(newTripForm.value.destLng),
       vehicleType: newTripForm.value.vehicleType,
       payment: newTripForm.value.payment,
     };
+
+    if (originCoords) {
+      payload.originLat = originCoords.lat;
+      payload.originLng = originCoords.lng;
+    }
+    if (destCoords) {
+      payload.destLat = destCoords.lat;
+      payload.destLng = destCoords.lng;
+    }
 
     if (newTripForm.value.fare && newTripForm.value.fare > 0) {
       payload.fare = Number(newTripForm.value.fare);

@@ -497,23 +497,28 @@ export class TripsService {
       });
     }
 
-    // 2. Calcular ruta y distancia
+    // 2. Geocodificar direcciones automáticamente si no se enviaron coordenadas explícitas
+    const originCoords =
+      typeof dto.originLat === 'number' && typeof dto.originLng === 'number'
+        ? { lat: dto.originLat, lng: dto.originLng }
+        : await this.maps.geocode(dto.originAddress, { lat: -17.7833, lng: -63.1821 });
+
+    const destCoords =
+      typeof dto.destLat === 'number' && typeof dto.destLng === 'number'
+        ? { lat: dto.destLat, lng: dto.destLng }
+        : await this.maps.geocode(dto.destAddress, { lat: -17.7550, lng: -63.1990 });
+
+    // 3. Calcular ruta y distancia
     let distanceMeters = 3000;
     let durationSeconds = 600;
     let polyline: string | null = null;
     try {
-      const route = await this.maps.route(
-        { lat: dto.originLat, lng: dto.originLng },
-        { lat: dto.destLat, lng: dto.destLng },
-      );
+      const route = await this.maps.route(originCoords, destCoords);
       distanceMeters = route.distanceMeters;
       durationSeconds = route.durationSeconds;
       polyline = route.polyline;
     } catch {
-      const km = haversineKm(
-        { lat: dto.originLat, lng: dto.originLng },
-        { lat: dto.destLat, lng: dto.destLng },
-      );
+      const km = haversineKm(originCoords, destCoords);
       distanceMeters = Math.max(500, Math.round(km * 1000));
       durationSeconds = Math.max(120, estimateEtaSeconds(km));
     }
@@ -523,7 +528,7 @@ export class TripsService {
     const calculatedFare = this.pricing.calculate(setting, distanceMeters, durationSeconds);
     const fare = dto.fare && dto.fare > 0 ? dto.fare : calculatedFare;
 
-    // 3. Si se especificó conductor de una vez, validar
+    // 4. Si se especificó conductor de una vez, validar
     let driverIdToAssign: string | null = null;
     if (dto.driverId) {
       await this.getApprovedDriver(dto.driverId);
@@ -533,7 +538,7 @@ export class TripsService {
       driverIdToAssign = dto.driverId;
     }
 
-    // 4. Crear viaje
+    // 5. Crear viaje
     const trip = await this.prisma.trip.create({
       data: {
         passengerId: passenger.id,
@@ -542,11 +547,11 @@ export class TripsService {
         pricingMode: PricingMode.FIXED,
         vehicleType: type,
         payment: dto.payment ?? PaymentMethod.CASH,
-        originLat: dto.originLat,
-        originLng: dto.originLng,
+        originLat: originCoords.lat,
+        originLng: originCoords.lng,
         originAddress: dto.originAddress,
-        destLat: dto.destLat,
-        destLng: dto.destLng,
+        destLat: destCoords.lat,
+        destLng: destCoords.lng,
         destAddress: dto.destAddress,
         polyline,
         distanceMeters,

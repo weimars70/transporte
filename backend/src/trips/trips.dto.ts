@@ -109,21 +109,25 @@ export class CreateAdminTripDto {
   @Length(2, 250)
   originAddress: string;
 
+  @IsOptional()
   @IsLatitude()
-  originLat: number;
+  originLat?: number;
 
+  @IsOptional()
   @IsLongitude()
-  originLng: number;
+  originLng?: number;
 
   @IsString()
   @Length(2, 250)
   destAddress: string;
 
+  @IsOptional()
   @IsLatitude()
-  destLat: number;
+  destLat?: number;
 
+  @IsOptional()
   @IsLongitude()
-  destLng: number;
+  destLng?: number;
 
   @IsOptional()
   @IsEnum(VehicleType)
