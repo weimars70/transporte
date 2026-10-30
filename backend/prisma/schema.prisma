@@ -1,0 +1,194 @@
+// =============================================================
+//  Esquema de base de datos - App de transporte (tipo Uber/InDrive)
+// =============================================================
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------- Enums ----------
+
+enum Role {
+  PASSENGER
+  DRIVER
+  ADMIN
+}
+
+enum DriverStatus {
+  PENDING // registrado, esperando aprobación del admin
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum VehicleType {
+  CAR
+  MOTO
+}
+
+enum PricingMode {
+  FIXED // tarifa calculada (estilo Uber)
+  BIDDING // pasajero propone precio, conductores ofertan (estilo InDrive)
+}
+
+enum TripStatus {
+  REQUESTED // buscando conductor
+  ACCEPTED // conductor asignado, en camino al punto de recogida
+  ARRIVED // conductor llegó al punto de recogida
+  IN_PROGRESS // viaje en curso
+  COMPLETED
+  CANCELLED
+}
+
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  WALLET
+}
+
+// ---------- Modelos ----------
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  phone        String   @unique
+  email        String?  @unique
+  passwordHash String
+  role         Role     @default(PASSENGER)
+  isActive     Boolean  @default(true)
+  avatarUrl    String?
+  rating       Float    @default(5)
+  ratingCount  Int      @default(0)
+  fcmToken     String? // token para notificaciones push
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  driver Driver?
+  trips  Trip[]  @relation("PassengerTrips")
+
+  @@index([role])
+}
+
+model Driver {
+  id            String       @id @default(uuid())
+  userId        String       @unique
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status        DriverStatus @default(PENDING)
+  licenseNumber String
+  isOnline      Boolean      @default(false)
+  lastLat       Float?
+  lastLng       Float?
+  lastSeenAt    DateTime?
+  totalTrips    Int          @default(0)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  vehicle Vehicle?
+  trips   Trip[]
+  offers  TripOffer[]
+
+  @@index([status, isOnline])
+}
+
+model Vehicle {
+  id       String      @id @default(uuid())
+  driverId String      @unique
+  driver   Driver      @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  type     VehicleType @default(CAR)
+  brand    String
+  model    String
+  color    String
+  plate    String      @unique
+  year     Int
+}
+
+model Trip {
+  id          String        @id @default(uuid())
+  passengerId String
+  passenger   User          @relation("PassengerTrips", fields: [passengerId], references: [id])
+  driverId    String?
+  driver      Driver?       @relation(fields: [driverId], references: [id])
+  status      TripStatus    @default(REQUESTED)
+  pricingMode PricingMode   @default(FIXED)
+  vehicleType VehicleType   @default(CAR)
+  payment     PaymentMethod @default(CASH)
+
+  originLat     Float
+  originLng     Float
+  originAddress String
+  destLat       Float
+  destLng       Float
+  destAddress   String
+  polyline      String? // ruta codificada (Google encoded polyline)
+
+  distanceMeters  Int
+  durationSeconds Int
+  estimatedFare   Decimal  @db.Decimal(10, 2)
+  proposedFare    Decimal? @db.Decimal(10, 2) // precio propuesto por el pasajero (BIDDING)
+  finalFare       Decimal? @db.Decimal(10, 2)
+  currency        String   @default("USD")
+
+  requestedAt  DateTime  @default(now())
+  acceptedAt   DateTime?
+  arrivedAt    DateTime?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  cancelledAt  DateTime?
+  cancelledBy  Role?
+  cancelReason String?
+
+  ratingByPassenger Int? // calificación que el pasajero da al conductor
+  ratingByDriver    Int? // calificación que el conductor da al pasajero
+
+  offers TripOffer[]
+
+  @@index([status])
+  @@index([passengerId, status])
+  @@index([driverId, status])
+}
+
+model TripOffer {
+  id        String      @id @default(uuid())
+  tripId    String
+  trip      Trip        @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  driverId  String
+  driver    Driver      @relation(fields: [driverId], references: [id])
+  amount    Decimal     @db.Decimal(10, 2)
+  etaSeconds Int?
+  status    OfferStatus @default(PENDING)
+  createdAt DateTime    @default(now())
+
+  @@unique([tripId, driverId])
+}
+
+/// Tarifas configurables desde el panel admin, una por tipo de vehículo
+model FareSetting {
+  id             String      @id @default(uuid())
+  vehicleType    VehicleType @unique
+  baseFare       Decimal     @db.Decimal(10, 2)
+  perKm          Decimal     @db.Decimal(10, 2)
+  perMinute      Decimal     @db.Decimal(10, 2)
+  minimumFare    Decimal     @db.Decimal(10, 2)
+  bookingFee     Decimal     @default(0) @db.Decimal(10, 2)
+  currency       String      @default("USD")
+  biddingEnabled Boolean     @default(true)
+  /// el pasajero no puede ofertar menos de este % de la tarifa estimada
+  minBidPercent  Int         @default(70)
+  /// comisión de la plataforma en %
+  commissionPct  Int         @default(10)
+  updatedAt      DateTime    @updatedAt
+}

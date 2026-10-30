@@ -1,0 +1,21 @@
+node_modules/
+dist/
+.env
+.env.local
+*.log
+.DS_Store
+.quasar/
+admin/dist/
+backend/dist/
+*.tsbuildinfo
+
+# Flutter & Android
+apps/**/build/
+apps/**/.dart_tool/
+apps/**/.flutter-plugins*
+apps/**/android/.gradle/
+apps/**/android/local.properties
+apps/**/android/app/debug/
+apps/**/android/app/profile/
+apps/**/android/app/release/
+*.apk
