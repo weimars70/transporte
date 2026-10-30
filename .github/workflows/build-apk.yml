@@ -38,9 +38,9 @@ jobs:
         working-directory: apps/driver
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
-      - name: Compilar APK de Producción Ligero (Release ARM64)
+      - name: Compilar APK de Producción Ligero (32-bit armeabi-v7a + 64-bit arm64-v8a)
         working-directory: apps/driver
-        run: flutter build apk --release --target-platform android-arm64
+        run: flutter build apk --release --target-platform android-arm,android-arm64
 
       - name: Copiar, renombrar y mostrar peso del APK
         run: |
@@ -74,7 +74,8 @@ jobs:
 
             - **Aplicación:** UrbanRide Conductor (`urbanride_driver`)
             - **Paquete:** `com.urbanride.urbanride_driver`
-            - **Optimización:** Símbolos de depuración eliminados y compresión activa (~15-20 MB)
+            - **Compatibilidad:** Universal (`armeabi-v7a` 32-bit y `arm64-v8a` 64-bit)
+            - **Peso aproximado:** ~16-18 MB (símbolos de depuración eliminados)
             - **Funciones:** GPS en tiempo real, recepción de viajes por Socket.IO, modo Tarifa Fija (Uber) y Subasta (InDrive)
           files: UrbanRide-Driver.apk
         env:
